@@ -35,14 +35,14 @@ prompt_env_var() {
   fi
 }
 
-echo "==> Provider API keys"
-prompt_env_var "HuggingFace token" "HF_TOKEN"
-echo ""
-
-echo "==> Working paths"
+echo "==> Configuration options"
+prompt_env_var "HuggingFace API token" "HF_TOKEN"
 prompt_env_var "OpenShell installation path" "OPENSHELL_INSTALL_PATH"
 OPENSHELL_INSTALL_PATH="$(read_env_var "OPENSHELL_INSTALL_PATH")"
 OPENSHELL_INSTALL_PATH="${OPENSHELL_INSTALL_PATH:--/tmp/openshell}"
+prompt_env_var "vLLM port" "VLLM_PORT"
+VLLM_PORT="$(read_env_var "VLLM_PORT")"
+VLLM_PORT="${VLLM_PORT:-8020}"
 echo ""
 
 echo "==> Installing OpenShell binary"
@@ -75,12 +75,30 @@ image_pull_policy = "IfNotPresent"
 sandbox_namespace = "openshell"
 grpc_endpoint     = "http://host.openshell.internal:8080"
 EOF
+echo ""
 
 echo "==> Starting the docker compose stack"
 docker compose down
 docker compose up -d
+echo ""
 
-echo "==> Registering the OpenShell gateway"
+echo "==> Waiting for OpenShell gateway to be healthy"
+until nc -z 127.0.0.1 "${OPENSHELL_PORT:-8080}" 2>/dev/null; do
+  echo "  gateway not ready yet, retrying in 2s..."
+  sleep 2
+done
+echo "  gateway is healthy"
+echo ""
+
+echo "==> Registering the OpenShell gateway and provider"
+sleep 2
 if ! openshell gateway list | grep -q 'multiclaw'; then
   openshell gateway add http://127.0.0.1:8080 --local --name multiclaw
+fi
+if ! openshell provider list --gateway multiclaw | grep -q 'multiclaw-vllm'; then
+  openshell provider create \
+    --config "OPENAI_BASE_URL=http://host.openshell.internal:${VLLM_PORT}/v1" \
+    --credential "OPENAI_API_KEY=dummy" \
+    --name multiclaw-vllm \
+    --type openai
 fi
