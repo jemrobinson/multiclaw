@@ -35,11 +35,15 @@ services:
     restart: unless-stopped
 
   multiclaw-nemoclaw:
-    # Local build only — not published to Docker Hub. Run `docker compose build` first.
-    image: multiclaw:latest
+    image: nemoclaw:latest
     container_name: multiclaw-nemoclaw
     build:
       context: .
     env_file:
       - path: .env
         required: false
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - "${NEMOCLAW_DATA_DIR:-${HOME:-/tmp}/.nemoclaw}/data:/nemoclaw-data"
