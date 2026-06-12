@@ -53,18 +53,57 @@ docker cp tmp-supervisor:/openshell-sandbox "${OPENSHELL_SUPERVISOR_DIR}/openshe
 docker rm tmp-supervisor
 chmod +x "${OPENSHELL_SUPERVISOR_DIR}/openshell-sandbox"
 
-echo "==> Writing OpenShell gateway JWT and config"
+echo "==> Writing OpenShell gateway config and credentials"
 OPENSHELL_GATEWAY_DIR="${OPENSHELL_INSTALL_PATH}/gateway"
 mkdir -p "$OPENSHELL_GATEWAY_DIR"
 
-# Generate stable JWT signing keys once; preserve across re-runs so live
-# sandbox tokens don't become invalid on restart.
+# --- mTLS certificates (generated once; stable across restarts) ---
+OPENSHELL_TLS_DIR="${OPENSHELL_GATEWAY_DIR}/tls"
+mkdir -p "$OPENSHELL_TLS_DIR"
+if [[ ! -f "${OPENSHELL_TLS_DIR}/ca.crt" ]]; then
+  echo "  Generating CA..."
+  openssl genrsa -out "${OPENSHELL_TLS_DIR}/ca.key" 4096
+  openssl req -new -x509 -key "${OPENSHELL_TLS_DIR}/ca.key" \
+    -out "${OPENSHELL_TLS_DIR}/ca.crt" -days 3650 \
+    -subj "/CN=openshell-local-ca"
+
+  echo "  Generating server certificate..."
+  openssl genrsa -out "${OPENSHELL_TLS_DIR}/server.key" 4096
+  openssl req -new -key "${OPENSHELL_TLS_DIR}/server.key" \
+    -out "${OPENSHELL_TLS_DIR}/server.csr" \
+    -subj "/CN=localhost"
+  openssl x509 -req -in "${OPENSHELL_TLS_DIR}/server.csr" \
+    -CA "${OPENSHELL_TLS_DIR}/ca.crt" -CAkey "${OPENSHELL_TLS_DIR}/ca.key" -CAcreateserial \
+    -out "${OPENSHELL_TLS_DIR}/server.crt" -days 3650 \
+    -extfile <(printf 'subjectAltName=DNS:localhost,IP:127.0.0.1\n')
+  rm "${OPENSHELL_TLS_DIR}/server.csr"
+
+  echo "  Generating client certificate..."
+  openssl genrsa -out "${OPENSHELL_TLS_DIR}/client.key" 4096
+  openssl req -new -key "${OPENSHELL_TLS_DIR}/client.key" \
+    -out "${OPENSHELL_TLS_DIR}/client.csr" \
+    -subj "/CN=openshell-cli"
+  openssl x509 -req -in "${OPENSHELL_TLS_DIR}/client.csr" \
+    -CA "${OPENSHELL_TLS_DIR}/ca.crt" -CAkey "${OPENSHELL_TLS_DIR}/ca.key" -CAcreateserial \
+    -out "${OPENSHELL_TLS_DIR}/client.crt" -days 3650
+  rm "${OPENSHELL_TLS_DIR}/client.csr"
+fi
+
+echo "  Installing CLI mTLS bundle..."
+CLI_MTLS_DIR="${HOME}/.config/openshell/gateways/multiclaw/mtls"
+mkdir -p "$CLI_MTLS_DIR"
+cp "${OPENSHELL_TLS_DIR}/ca.crt"     "${CLI_MTLS_DIR}/ca.crt"
+cp "${OPENSHELL_TLS_DIR}/client.crt" "${CLI_MTLS_DIR}/tls.crt"
+cp "${OPENSHELL_TLS_DIR}/client.key" "${CLI_MTLS_DIR}/tls.key"
+chmod 600 "${CLI_MTLS_DIR}/tls.key"
+
+# --- sandbox JWT signing keys (generated once; stable across restarts) ---
 OPENSHELL_JWT_DIR="${OPENSHELL_GATEWAY_DIR}/jwt"
 mkdir -p "$OPENSHELL_JWT_DIR"
 if [[ ! -f "${OPENSHELL_JWT_DIR}/signing.pem" ]]; then
-  openssl genrsa -out "${OPENSHELL_JWT_DIR}/signing.pem" 4096
-  openssl rsa -in "${OPENSHELL_JWT_DIR}/signing.pem" \
-    -pubout -out "${OPENSHELL_JWT_DIR}/public.pem"
+  echo "  Generating sandbox JWT keys..."
+  openssl genpkey -algorithm Ed25519 -out "${OPENSHELL_JWT_DIR}/signing.pem"
+  openssl pkey -in "${OPENSHELL_JWT_DIR}/signing.pem" -pubout -out "${OPENSHELL_JWT_DIR}/public.pem"
   openssl rand -hex 16 > "${OPENSHELL_JWT_DIR}/kid"
 fi
 
@@ -78,7 +117,6 @@ bind_address        = "127.0.0.1:8080"
 health_bind_address = "127.0.0.1:8081"
 log_level           = "info"
 compute_drivers     = ["docker"]
-disable_tls         = true
 
 [openshell.gateway.gateway_jwt]
 signing_key_path = "/etc/openshell/jwt/signing.pem"
@@ -111,7 +149,7 @@ echo ""
 echo "==> Registering the OpenShell gateway and provider"
 sleep 2
 if ! openshell gateway list | grep -q 'multiclaw'; then
-  openshell gateway add http://127.0.0.1:8080 --local --name multiclaw
+  openshell gateway add https://127.0.0.1:8080 --local --name multiclaw
 fi
 if ! openshell provider list --gateway multiclaw | grep -q 'multiclaw-vllm'; then
   PUBLIC_IP="$(hostname -I | awk '{print $1}')"

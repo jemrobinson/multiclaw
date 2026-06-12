@@ -48,7 +48,7 @@ services:
     user: "0"
 
     ports:
-      # gRPC / control-plane API  (used by the openshell CLI and sandbox callbacks)
+      # gRPC / control-plane API — HTTPS + mTLS (used by the openshell CLI)
       - "127.0.0.1:${OPENSHELL_PORT:-8080}:8080"
       # Health endpoint  (GET /healthz, GET /readyz)
       - "127.0.0.1:${OPENSHELL_HEALTH_PORT:-8081}:8081"
@@ -86,9 +86,19 @@ services:
         target: /etc/openshell/jwt
         read_only: true
 
+      # mTLS certificates — generated once by setup.sh; mounted read-only.
+      - type: bind
+        source: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/gateway/tls
+        target: /etc/openshell/tls
+        read_only: true
+
     environment:
       HOME: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}
       OPENSHELL_DB_URL: "sqlite:${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/gateway/gateway.db?mode=rwc"
+      OPENSHELL_ENABLE_MTLS_AUTH: "true"
       OPENSHELL_GATEWAY_CONFIG: /etc/openshell/gateway.toml
       OPENSHELL_GRPC_ENDPOINT: "http://host.openshell.internal:8080"
+      OPENSHELL_TLS_CERT: /etc/openshell/tls/server.crt
+      OPENSHELL_TLS_CLIENT_CA: /etc/openshell/tls/ca.crt
+      OPENSHELL_TLS_KEY: /etc/openshell/tls/server.key
       XDG_DATA_HOME: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}
