@@ -43,9 +43,18 @@ services:
     command: []
 
     # Run as UID 0 so the gateway can:
-    #   - write the extracted supervisor binary to /var/lib/openshell
-    #   - access /var/run/docker.sock (typically owned by root or the docker group)
+    # - write the extracted supervisor binary to /var/lib/openshell
+    # - access /var/run/docker.sock (typically owned by root or the docker group)
     user: "0"
+
+    healthcheck:
+      # Health endpoint binds to loopback inside the container, so we must
+      # check it from within rather than via a host-side port mapping.
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8081/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
     ports:
       # gRPC / control-plane API  (used by the openshell CLI and sandbox callbacks)

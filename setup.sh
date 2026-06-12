@@ -75,3 +75,12 @@ image_pull_policy = "IfNotPresent"
 sandbox_namespace = "openshell"
 grpc_endpoint     = "http://host.openshell.internal:8080"
 EOF
+
+echo "==> Starting the docker compose stack"
+docker compose down
+docker compose up -d
+
+echo "==> Registering the OpenShell gateway"
+if ! openshell gateway list | grep -q 'multiclaw'; then
+  openshell gateway add http://127.0.0.1:8080 --local --name multiclaw
+fi
