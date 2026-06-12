@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$ROOT_DIR/.env"
-AUTH_PROFILE_SECRET_DIR="${HOME:-/tmp}/.multiclaw/0/auth-profile-secrets"
 
 # Write or update a key=value line in the .env file
 upsert_env_key() {
@@ -36,19 +35,6 @@ prompt_api_key() {
   fi
 }
 
-echo "==> Gateway public URL"
-existing_url="$(read_env_key "OPENCLAW_PUBLIC_URL")"
-if [[ -n "$existing_url" ]]; then
-  echo "OPENCLAW_PUBLIC_URL already set to: $existing_url"
-else
-  read -r -p "Public URL for this gateway (e.g. http://a.b.c.d:8500, leave blank for local-only): " public_url
-  if [[ -n "$public_url" ]]; then
-    upsert_env_key "OPENCLAW_PUBLIC_URL" "$public_url"
-    echo "  Saved OPENCLAW_PUBLIC_URL."
-  fi
-fi
-echo ""
-
 echo "==> Provider API keys"
 prompt_api_key "Anthropic API key" "ANTHROPIC_API_KEY"
 prompt_api_key "Claude AI session key" "CLAUDE_AI_SESSION_KEY"
@@ -71,10 +57,38 @@ else
 fi
 echo ""
 
-echo "==> Creating auth-profile secrets directory"
-mkdir -p "$AUTH_PROFILE_SECRET_DIR"
-echo "$AUTH_PROFILE_SECRET_DIR"
-echo ""
+echo "==> Pre-creating bind-mount directories"
+# Resolve host-side source paths and write them to .env so docker-compose uses
+# them for volume mount sources. The environment: section in compose then pins
+# the container-side values to /home/node/... regardless of these host paths.
+# OPENCLAW_CONFIG_DIR is the base; compose appends /0/config for the mount source.
+OPENCLAW_CONFIG_DIR="$(read_env_key "OPENCLAW_CONFIG_DIR")"
+OPENCLAW_CONFIG_DIR="${OPENCLAW_CONFIG_DIR:-${HOME:-/tmp}/.multiclaw}"
+upsert_env_key "OPENCLAW_CONFIG_DIR" "$OPENCLAW_CONFIG_DIR"
+
+OPENCLAW_WORKSPACE_DIR="$(read_env_key "OPENCLAW_WORKSPACE_DIR")"
+OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-${HOME:-/tmp}/.multiclaw/0/workspace}"
+upsert_env_key "OPENCLAW_WORKSPACE_DIR" "$OPENCLAW_WORKSPACE_DIR"
+
+OPENCLAW_AUTH_PROFILE_SECRET_DIR="$(read_env_key "OPENCLAW_AUTH_PROFILE_SECRET_DIR")"
+OPENCLAW_AUTH_PROFILE_SECRET_DIR="${OPENCLAW_AUTH_PROFILE_SECRET_DIR:-${HOME:-/tmp}/.multiclaw/0/auth-profile-secrets}"
+upsert_env_key "OPENCLAW_AUTH_PROFILE_SECRET_DIR" "$OPENCLAW_AUTH_PROFILE_SECRET_DIR"
+
+HF_HUB_CACHE="$(read_env_key "HF_HUB_CACHE")"
+HF_HUB_CACHE="${HF_HUB_CACHE:-${HOME:-/tmp}/.cache/huggingface}"
+upsert_env_key "HF_HUB_CACHE" "$HF_HUB_CACHE"
+
+# Create multiclaw directories so that bind mounts work on Docker
+for DIRECTORY in "$OPENCLAW_CONFIG_DIR/0/config/agents/main/agent" \
+                 "$OPENCLAW_CONFIG_DIR/0/config/agents/main/sessions" \
+                 "$OPENCLAW_CONFIG_DIR/0/config/identity" \
+                 "$OPENCLAW_CONFIG_DIR/0/config/workspace" \
+                 "$OPENCLAW_WORKSPACE_DIR" \
+                 "$OPENCLAW_AUTH_PROFILE_SECRET_DIR" \
+                 "$HF_HUB_CACHE"; do
+  mkdir -p "$DIRECTORY"
+  echo "Ensured directory $DIRECTORY exists"
+done
 
 echo "==> Starting Multiclaw with Docker"
 docker compose down

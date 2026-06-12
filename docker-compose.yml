@@ -1,7 +1,7 @@
 services:
-  vllm-server:
+  multiclaw-vllm-server:
     image: "nvcr.io/nvidia/vllm:${VLLM_VERSION:-26.05.post1-py3}"
-    container_name: vllm-server
+    container_name: multiclaw-vllm-server
     ipc: host
     environment:
       HF_TOKEN: ${HF_TOKEN:-}
