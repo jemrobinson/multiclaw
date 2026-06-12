@@ -53,6 +53,7 @@ echo "==> Provider API keys"
 prompt_api_key "Anthropic API key" "ANTHROPIC_API_KEY"
 prompt_api_key "Claude AI session key" "CLAUDE_AI_SESSION_KEY"
 prompt_api_key "OpenAI API key" "OPENAI_API_KEY"
+prompt_api_key "HuggingFace token" "HF_TOKEN"
 echo ""
 
 echo "==> Gateway token"
@@ -75,5 +76,7 @@ mkdir -p "$AUTH_PROFILE_SECRET_DIR"
 echo "$AUTH_PROFILE_SECRET_DIR"
 echo ""
 
-echo "==> Setup complete"
-echo "You can now run 'docker compose build && docker compose up' to start Multiclaw."
+echo "==> Starting Multiclaw with Docker"
+docker compose down
+docker compose build
+docker compose up -d
