@@ -47,7 +47,6 @@ services:
     # - access /var/run/docker.sock (typically owned by root or the docker group)
     user: "0"
 
-
     ports:
       # gRPC / control-plane API  (used by the openshell CLI and sandbox callbacks)
       - "127.0.0.1:${OPENSHELL_PORT:-8080}:8080"
@@ -81,8 +80,15 @@ services:
         target: /etc/openshell/gateway.toml
         read_only: true
 
+      # JWT signing keys — generated once by setup.sh; mounted read-only.
+      - type: bind
+        source: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/gateway/jwt
+        target: /etc/openshell/jwt
+        read_only: true
+
     environment:
-      OPENSHELL_GATEWAY_CONFIG: /etc/openshell/gateway.toml
-      OPENSHELL_DB_URL: "sqlite:${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/gateway/gateway.db?mode=rwc"
-      XDG_DATA_HOME: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}
       HOME: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}
+      OPENSHELL_DB_URL: "sqlite:${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/gateway/gateway.db?mode=rwc"
+      OPENSHELL_GATEWAY_CONFIG: /etc/openshell/gateway.toml
+      OPENSHELL_GRPC_ENDPOINT: "http://host.openshell.internal:8080"
+      XDG_DATA_HOME: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}

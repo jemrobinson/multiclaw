@@ -53,10 +53,22 @@ docker cp tmp-supervisor:/openshell-sandbox "${OPENSHELL_SUPERVISOR_DIR}/openshe
 docker rm tmp-supervisor
 chmod +x "${OPENSHELL_SUPERVISOR_DIR}/openshell-sandbox"
 
-echo "==> Writing OpenShell gateway config"
-OPENSHELL_GATEWAY_TOML_DIR="${OPENSHELL_INSTALL_PATH}/gateway"
-mkdir -p "$OPENSHELL_GATEWAY_TOML_DIR"
-cat << EOF > "${OPENSHELL_GATEWAY_TOML_DIR}/config.toml"
+echo "==> Writing OpenShell gateway JWT and config"
+OPENSHELL_GATEWAY_DIR="${OPENSHELL_INSTALL_PATH}/gateway"
+mkdir -p "$OPENSHELL_GATEWAY_DIR"
+
+# Generate stable JWT signing keys once; preserve across re-runs so live
+# sandbox tokens don't become invalid on restart.
+OPENSHELL_JWT_DIR="${OPENSHELL_GATEWAY_DIR}/jwt"
+mkdir -p "$OPENSHELL_JWT_DIR"
+if [[ ! -f "${OPENSHELL_JWT_DIR}/signing.pem" ]]; then
+  openssl genrsa -out "${OPENSHELL_JWT_DIR}/signing.pem" 4096
+  openssl rsa -in "${OPENSHELL_JWT_DIR}/signing.pem" \
+    -pubout -out "${OPENSHELL_JWT_DIR}/public.pem"
+  openssl rand -hex 16 > "${OPENSHELL_JWT_DIR}/kid"
+fi
+
+cat << EOF > "${OPENSHELL_GATEWAY_DIR}/config.toml"
 # From https://github.com/NVIDIA/OpenShell/blob/main/deploy/docker/gateway.toml
 [openshell]
 version = 1
@@ -67,6 +79,12 @@ health_bind_address = "127.0.0.1:8081"
 log_level           = "info"
 compute_drivers     = ["docker"]
 disable_tls         = true
+
+[openshell.gateway.gateway_jwt]
+signing_key_path = "/etc/openshell/jwt/signing.pem"
+public_key_path  = "/etc/openshell/jwt/public.pem"
+kid_path         = "/etc/openshell/jwt/kid"
+gateway_id       = "openshell"
 
 [openshell.drivers.docker]
 default_image     = "ghcr.io/nvidia/openshell-community/sandboxes/base:latest"
@@ -96,9 +114,12 @@ if ! openshell gateway list | grep -q 'multiclaw'; then
   openshell gateway add http://127.0.0.1:8080 --local --name multiclaw
 fi
 if ! openshell provider list --gateway multiclaw | grep -q 'multiclaw-vllm'; then
+  PUBLIC_IP="$(hostname -I | awk '{print $1}')"
   openshell provider create \
-    --config "OPENAI_BASE_URL=http://host.openshell.internal:${VLLM_PORT}/v1" \
+    --config "OPENAI_BASE_URL=http://${PUBLIC_IP}:${VLLM_PORT}/v1" \
     --credential "OPENAI_API_KEY=dummy" \
     --name multiclaw-vllm \
     --type openai
 fi
+
+openshell inference set --provider multiclaw-vllm --model openai/gpt-oss-20b
