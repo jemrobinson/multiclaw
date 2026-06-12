@@ -71,8 +71,10 @@ services:
         "--bind",
         "${OPENCLAW_GATEWAY_BIND:-lan}",
         "--port",
-        "8500",
+        "18789",
         "--allow-unconfigured",
+        "--public-url",
+        "${OPENCLAW_PUBLIC_URL:-}",
       ]
     healthcheck:
       test:
@@ -80,7 +82,7 @@ services:
           "CMD",
           "node",
           "-e",
-          "fetch('http://127.0.0.1:8500/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+          "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 30s
       timeout: 5s

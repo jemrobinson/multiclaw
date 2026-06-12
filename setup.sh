@@ -36,6 +36,19 @@ prompt_api_key() {
   fi
 }
 
+echo "==> Gateway public URL"
+existing_url="$(read_env_key "OPENCLAW_PUBLIC_URL")"
+if [[ -n "$existing_url" ]]; then
+  echo "OPENCLAW_PUBLIC_URL already set to: $existing_url"
+else
+  read -r -p "Public URL for this gateway (e.g. http://a.b.c.d:8500, leave blank for local-only): " public_url
+  if [[ -n "$public_url" ]]; then
+    upsert_env_key "OPENCLAW_PUBLIC_URL" "$public_url"
+    echo "  Saved OPENCLAW_PUBLIC_URL."
+  fi
+fi
+echo ""
+
 echo "==> Provider API keys"
 prompt_api_key "Anthropic API key" "ANTHROPIC_API_KEY"
 prompt_api_key "Claude AI session key" "CLAUDE_AI_SESSION_KEY"
