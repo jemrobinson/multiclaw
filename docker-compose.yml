@@ -58,24 +58,30 @@ services:
       # Use the host Docker socket to create sibling containers on the host (Docker-outside-of-Docker)
       - /var/run/docker.sock:/var/run/docker.sock
 
-      # Data directory — must be a bind-mount with source == target so that
-      # internal and external Docker use the same paths
+      # Data directory (as a bind-mount with source == target so that internal and external
+      # Docker use the same paths
       - type: bind
         source: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/supervisor/openshell-sandbox
         target: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/supervisor/openshell-sandbox
         bind:
           create_host_path: true
 
-      # TOML config — all gateway and driver settings live here.
-      # Docker Compose resolves ./ relative to the directory that contains this
-      # docker-compose.yml file (deploy/docker/), not the CWD of the caller.
+      # Gateway directory (as a bind-mount with source == target so that internal and external
+      # Docker use the same paths
       - type: bind
-        source: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/config/gateway.toml
+        source: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/gateway
+        target: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/gateway
+        bind:
+          create_host_path: true
+
+      # TOML config — also exposed at the path the gateway expects by default.
+      - type: bind
+        source: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/gateway/config.toml
         target: /etc/openshell/gateway.toml
         read_only: true
 
     environment:
       OPENSHELL_GATEWAY_CONFIG: /etc/openshell/gateway.toml
-      OPENSHELL_DB_URL: "sqlite:${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/config/gateway.db?mode=rwc"
+      OPENSHELL_DB_URL: "sqlite:${OPENSHELL_INSTALL_PATH:-/tmp/openshell}/gateway/gateway.db?mode=rwc"
       XDG_DATA_HOME: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}
       HOME: ${OPENSHELL_INSTALL_PATH:-/tmp/openshell}

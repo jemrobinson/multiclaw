@@ -41,13 +41,37 @@ echo ""
 
 echo "==> Working paths"
 prompt_env_var "OpenShell installation path" "OPENSHELL_INSTALL_PATH"
+OPENSHELL_INSTALL_PATH="$(read_env_var "OPENSHELL_INSTALL_PATH")"
+OPENSHELL_INSTALL_PATH="${OPENSHELL_INSTALL_PATH:--/tmp/openshell}"
 echo ""
 
 echo "==> Installing OpenShell binary"
-OPENSHELL_SUPERVISOR_PATH="$(read_env_var "OPENSHELL_INSTALL_PATH")"
-OPENSHELL_SUPERVISOR_PATH="${OPENSHELL_SUPERVISOR_PATH:--/tmp/openshell}/supervisor"
-mkdir -p "$OPENSHELL_SUPERVISOR_PATH"
+OPENSHELL_SUPERVISOR_DIR="${OPENSHELL_INSTALL_PATH}/supervisor"
+mkdir -p "$OPENSHELL_SUPERVISOR_DIR"
 docker create --name tmp-supervisor ghcr.io/nvidia/openshell/supervisor:latest
-docker cp tmp-supervisor:/openshell-sandbox "${OPENSHELL_SUPERVISOR_PATH}/openshell-sandbox"
+docker cp tmp-supervisor:/openshell-sandbox "${OPENSHELL_SUPERVISOR_DIR}/openshell-sandbox"
 docker rm tmp-supervisor
-chmod +x "${OPENSHELL_SUPERVISOR_PATH}/openshell-sandbox"
+chmod +x "${OPENSHELL_SUPERVISOR_DIR}/openshell-sandbox"
+
+echo "==> Writing OpenShell gateway config"
+OPENSHELL_GATEWAY_TOML_DIR="${OPENSHELL_INSTALL_PATH}/gateway"
+mkdir -p "$OPENSHELL_GATEWAY_TOML_DIR"
+cat << EOF > "${OPENSHELL_GATEWAY_TOML_DIR}/config.toml"
+# From https://github.com/NVIDIA/OpenShell/blob/main/deploy/docker/gateway.toml
+[openshell]
+version = 1
+
+[openshell.gateway]
+bind_address        = "127.0.0.1:8080"
+health_bind_address = "127.0.0.1:8081"
+log_level           = "info"
+compute_drivers     = ["docker"]
+disable_tls         = true
+
+[openshell.drivers.docker]
+default_image     = "ghcr.io/nvidia/openshell-community/sandboxes/base:latest"
+supervisor_image  = "ghcr.io/nvidia/openshell/supervisor:latest"
+image_pull_policy = "IfNotPresent"
+sandbox_namespace = "openshell"
+grpc_endpoint     = "http://host.openshell.internal:8080"
+EOF
