@@ -1,5 +1,6 @@
 services:
   openclaw-0-gateway:
+    # Local build only — not published to Docker Hub. Run `docker compose build` first.
     image: multiclaw:latest
     container_name: openclaw-0-gateway
     build: .
@@ -87,6 +88,7 @@ services:
       start_period: 20s
 
   openclaw-0-cli:
+    # Local build only — not published to Docker Hub. Run `docker compose build` first.
     image: multiclaw:latest
     container_name: openclaw-0-cli
     build: .

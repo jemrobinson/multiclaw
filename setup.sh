@@ -63,4 +63,4 @@ echo "$AUTH_PROFILE_SECRET_DIR"
 echo ""
 
 echo "==> Setup complete"
-echo "You can now run 'docker compose up' to start Multiclaw."
+echo "You can now run 'docker compose build && docker compose up' to start Multiclaw."
