@@ -1,8 +1,43 @@
 services:
-  openclaw-0-gateway:
+  vllm-server:
+    image: "nvcr.io/nvidia/vllm:${VLLM_VERSION:-26.05.post1-py3}"
+    container_name: vllm-server
+    ipc: host
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_HUB_CACHE: /root/.cache/huggingface
+    volumes:
+      - "${HF_HUB_CACHE:-${HOME:-/tmp}/.cache/huggingface}:/root/.cache/huggingface"
+    ports:
+      - "${VLLM_PORT:-8020}:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    stdin_open: true
+    tty: true
+    command:
+      [
+        "vllm",
+        "serve",
+        "${HF_MODEL_REPO:-openai}/${HF_MODEL_NAME:-gpt-oss-120b}",
+        "--gpu-memory-utilization=${MAX_GPU_MEM_PERCENT:-0.6}",
+      ]
+    restart: unless-stopped
+
+  multiclaw-0-gateway:
     # Local build only — not published to Docker Hub. Run `docker compose build` first.
     image: multiclaw:latest
-    container_name: openclaw-0-gateway
+    container_name: multiclaw-0-gateway
     build: .
     env_file:
       - path: .env
@@ -73,8 +108,6 @@ services:
         "--port",
         "18789",
         "--allow-unconfigured",
-        "--public-url",
-        "${OPENCLAW_PUBLIC_URL:-}",
       ]
     healthcheck:
       test:
@@ -89,12 +122,12 @@ services:
       retries: 5
       start_period: 20s
 
-  openclaw-0-cli:
+  multiclaw-0-cli:
     # Local build only — not published to Docker Hub. Run `docker compose build` first.
     image: multiclaw:latest
-    container_name: openclaw-0-cli
+    container_name: multiclaw-0-cli
     build: .
-    network_mode: "service:openclaw-0-gateway"
+    network_mode: "service:multiclaw-0-gateway"
     env_file:
       - path: .env
         required: false
@@ -129,4 +162,5 @@ services:
     init: true
     entrypoint: ["node", "dist/index.js"]
     depends_on:
-      - openclaw-0-gateway
+      - multiclaw-0-gateway
+
