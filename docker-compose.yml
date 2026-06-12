@@ -38,7 +38,11 @@ services:
     # Local build only — not published to Docker Hub. Run `docker compose build` first.
     image: multiclaw:latest
     container_name: multiclaw-0-gateway
-    build: .
+    build:
+      context: .
+      args:
+        NODE_UID: ${NODE_UID:-1000}
+        NODE_GID: ${NODE_GID:-1000}
     env_file:
       - path: .env
         required: false
@@ -126,7 +130,11 @@ services:
     # Local build only — not published to Docker Hub. Run `docker compose build` first.
     image: multiclaw:latest
     container_name: multiclaw-0-cli
-    build: .
+    build:
+      context: .
+      args:
+        NODE_UID: ${NODE_UID:-1000}
+        NODE_GID: ${NODE_GID:-1000}
     network_mode: "service:multiclaw-0-gateway"
     env_file:
       - path: .env

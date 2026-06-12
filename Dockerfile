@@ -11,5 +11,13 @@ RUN apt-get update && \
     apt-get update && apt-get install -y gh && \
     rm -rf /var/lib/apt/lists/*
 
+# Remap the node user to the host user's UID/GID so bind-mount directories
+# are accessible without chown or ACLs. Defaults match the original node uid.
+ARG NODE_UID=1000
+ARG NODE_GID=1000
+RUN groupmod -g "${NODE_GID}" node && \
+    usermod  -u "${NODE_UID}" -g "${NODE_GID}" node && \
+    chown -R node:node /home/node
+
 # Switch back to the node user
 USER node

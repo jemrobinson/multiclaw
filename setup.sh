@@ -62,6 +62,11 @@ echo "==> Pre-creating bind-mount directories"
 # them for volume mount sources. The environment: section in compose then pins
 # the container-side values to /home/node/... regardless of these host paths.
 # OPENCLAW_CONFIG_DIR is the base; compose appends /0/config for the mount source.
+NODE_UID="$(id -u)"
+NODE_GID="$(id -g)"
+upsert_env_key "NODE_UID" "$NODE_UID"
+upsert_env_key "NODE_GID" "$NODE_GID"
+
 OPENCLAW_CONFIG_DIR="$(read_env_key "OPENCLAW_CONFIG_DIR")"
 OPENCLAW_CONFIG_DIR="${OPENCLAW_CONFIG_DIR:-${HOME:-/tmp}/.multiclaw}"
 upsert_env_key "OPENCLAW_CONFIG_DIR" "$OPENCLAW_CONFIG_DIR"
@@ -94,3 +99,4 @@ echo "==> Starting Multiclaw with Docker"
 docker compose down
 docker compose build
 docker compose up -d
+docker compose run --rm --no-deps multiclaw-0-gateway openclaw onboard --non-interactive --accept-risk --install-daemon
