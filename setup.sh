@@ -101,4 +101,9 @@ echo "  7. Networking presets: we suggest including only 'npm', 'pypi', 'hugging
 curl -fsSL https://www.nvidia.com/nemoclaw.sh | NEMOCLAW_SANDBOX_NAME=$NEMOCLAW_SANDBOX_NAME NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1 NEMOCLAW_INSTALL_TAG=$NEMOCLAW_INSTALL_TAG bash
 
 echo "==> Configuring NemoClaw"
+echo "  1. Applying saferclaw network policies"
 nemoclaw "$NEMOCLAW_SANDBOX_NAME" policy-add --from-dir ./policies/ --yes
+echo "  2. To configure GitHub token login:"
+echo "   - open an openclaw terminal with 'nemoclaw $NEMOCLAW_SANDBOX_NAME connect'"
+echo "   - then in the openclaw terminal, run: 'gh auth login'"
+echo "   - then exit the openclaw terminal and run: 'openshell term' and approve the network request"
