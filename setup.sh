@@ -3,6 +3,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$ROOT_DIR/.env"
+if [[ $# -lt 1 ]]; then
+  echo "Must provide a sandbox name as the first argument."
+  exit 1
+fi
+NEMOCLAW_SANDBOX_NAME=$1
 
 # Write or update a key=value line in the .env file
 upsert_env_var() {
@@ -92,10 +97,8 @@ echo "     - 'Other Anthropic-compatible endpoint model: should be '${HF_MODEL_R
 echo "  4. When asked for 'Sandbox name' enter whatever you want, e.g. 'saferclaw'"
 echo "  5. When asked 'Apply this configuration? [Y/n]:', check the details and select 'Y'"
 echo "  6. When asked 'Available messaging channels:', we suggest using Slack (you will need a bot token)"
-echo "  7. Networking presets: we suggest including only 'npm', 'pypi', 'huggingface', 'brew', 'github', 'slack'"
-curl -fsSL https://www.nvidia.com/nemoclaw.sh | bash
+echo "  7. Networking presets: we suggest including only 'npm', 'pypi', 'huggingface', 'slack'"
+curl -fsSL https://www.nvidia.com/nemoclaw.sh | NEMOCLAW_SANDBOX_NAME=$NEMOCLAW_SANDBOX_NAME NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1 NEMOCLAW_INSTALL_TAG=$NEMOCLAW_INSTALL_TAG bash
 
-echo "==> Using NemoClaw agents"
-echo "The easiest way will be to use the terminal UI:"
-echo "> nemoclaw \$SANDBOX_NAME connect"
-echo "> nemoclaw dactyl connect"
+echo "==> Configuring NemoClaw"
+nemoclaw "$NEMOCLAW_SANDBOX_NAME" policy-add --from-dir ./policies/ --yes

@@ -1,0 +1,20 @@
+# gh cli access preset.
+#
+# No longer included in the github preset
+
+preset:
+  name: gh
+  description: "GitHub.com and GitHub API access (gh)"
+
+network_policies:
+  gh:
+    name: gh
+    endpoints:
+      - host: github.com
+        port: 443
+        access: full
+      - host: api.github.com
+        port: 443
+        access: full
+    binaries:
+      - { path: /usr/bin/gh }

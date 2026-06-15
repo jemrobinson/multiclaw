@@ -1,23 +1,11 @@
-FROM ghcr.io/openclaw/openclaw:latest
+FROM ghcr.io/nvidia/nemoclaw/sandbox-base:latest
 
-# Install GitHub CLI as root
-USER root
-RUN apt-get update && \
-    apt-get install -y curl gpg && \
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-      | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-      > /etc/apt/sources.list.d/github-cli.list && \
-    apt-get update && apt-get install -y gh && \
-    rm -rf /var/lib/apt/lists/*
-
-# Remap the node user to the host user's UID/GID so bind-mount directories
-# are accessible without chown or ACLs. Defaults match the original node uid.
-ARG NODE_UID=1000
-ARG NODE_GID=1000
-RUN groupmod -g "${NODE_GID}" node && \
-    usermod  -u "${NODE_UID}" -g "${NODE_GID}" node && \
-    chown -R node:node /home/node
-
-# Switch back to the node user
-USER node
+# Install GitHub CLI (gh)
+RUN (type -p wget >/dev/null || (apt update && apt install wget -y)) \
+    && mkdir -p -m 755 /etc/apt/keyrings \
+    && wget -nv -O /etc/apt/keyrings/githubcli-archive-keyring.gpg https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && mkdir -p -m 755 /etc/apt/sources.list.d \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt update \
+    && apt install gh -y
