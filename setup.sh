@@ -85,7 +85,13 @@ fi
 echo "==> Currently available vLLM models..."
 curl http://${PUBLIC_IP}:${VLLM_PORT}/v1/models
 
-echo "==> Installing NemoClaw ${NEMOCLAW_INSTALL_TAG}"
+# Install NemoClaw if we do not have the correct version
+if [  "$(nemoclaw --version)" != "nemoclaw $NEMOCLAW_INSTALL_TAG" ]; then
+  echo "==> Installing NemoClaw ${NEMOCLAW_INSTALL_TAG}"
+  curl -fsSL https://www.nvidia.com/nemoclaw.sh | NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1 NEMOCLAW_NON_INTERACTIVE=0 NEMOCLAW_INSTALL_TAG=$NEMOCLAW_INSTALL_TAG bash || true
+fi
+
+echo "==> Configuring NemoClaw"
 echo "You will need to:"
 echo "  1. Accept the NVIDIA EULA"
 echo "  2. Do not run express install"
@@ -98,13 +104,9 @@ echo "  4. When asked for 'Sandbox name' enter whatever you want, e.g. 'safercla
 echo "  5. When asked 'Apply this configuration? [Y/n]:', check the details and select 'Y'"
 echo "  6. When asked 'Available messaging channels:', we suggest using Slack (you will need a bot token)"
 echo "  7. Networking presets: we suggest including only 'npm', 'pypi', 'huggingface', 'slack'"
-curl -fsSL https://www.nvidia.com/nemoclaw.sh | \
-  NEMOCLAW_NON_INTERACTIVE=1 \
-  NEMOCLAW_FROM_DOCKERFILE=dockerfile.sandbox \
-  NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1 \
-  NEMOCLAW_INSTALL_TAG=$NEMOCLAW_INSTALL_TAG bash
+NEMOCLAW_POLICY_TIER=balanced nemoclaw onboard --gpu --fresh --from "${ROOT_DIR}/Dockerfile.sandbox" --name "$NEMOCLAW_SANDBOX_NAME"
 
-echo "==> Configuring NemoClaw"
+echo "==> Patching NemoClaw sandbox"
 echo "  1. Applying saferclaw network policies"
 nemoclaw "$NEMOCLAW_SANDBOX_NAME" policy-add --from-dir ./policies/ --yes
 echo "  2. To configure GitHub token login:"

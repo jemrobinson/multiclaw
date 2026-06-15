@@ -1,5 +1,8 @@
 FROM ghcr.io/nvidia/nemoclaw/sandbox-base:latest
 
+# Redeclare necessary ARGs to make them available in the build stage
+ARG NEMOCLAW_MESSAGING_PLAN_B64=
+
 # Install GitHub CLI (gh)
 RUN (type -p wget >/dev/null || (apt update && apt install wget -y)) \
     && mkdir -p -m 755 /etc/apt/keyrings \
