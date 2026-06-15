@@ -98,7 +98,11 @@ echo "  4. When asked for 'Sandbox name' enter whatever you want, e.g. 'safercla
 echo "  5. When asked 'Apply this configuration? [Y/n]:', check the details and select 'Y'"
 echo "  6. When asked 'Available messaging channels:', we suggest using Slack (you will need a bot token)"
 echo "  7. Networking presets: we suggest including only 'npm', 'pypi', 'huggingface', 'slack'"
-curl -fsSL https://www.nvidia.com/nemoclaw.sh | NEMOCLAW_SANDBOX_NAME=$NEMOCLAW_SANDBOX_NAME NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1 NEMOCLAW_INSTALL_TAG=$NEMOCLAW_INSTALL_TAG bash
+curl -fsSL https://www.nvidia.com/nemoclaw.sh | \
+  NEMOCLAW_NON_INTERACTIVE=1 \
+  NEMOCLAW_FROM_DOCKERFILE=dockerfile.sandbox \
+  NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1 \
+  NEMOCLAW_INSTALL_TAG=$NEMOCLAW_INSTALL_TAG bash
 
 echo "==> Configuring NemoClaw"
 echo "  1. Applying saferclaw network policies"
