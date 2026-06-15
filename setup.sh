@@ -57,7 +57,7 @@ else
 fi
 prompt_env_var "NemoClaw installation tag" "NEMOCLAW_INSTALL_TAG"
 NEMOCLAW_INSTALL_TAG="$(read_env_var "NEMOCLAW_INSTALL_TAG")"
-NEMOCLAW_INSTALL_TAG="${NEMOCLAW_INSTALL_TAG:-v0.0.55}"
+NEMOCLAW_INSTALL_TAG="${NEMOCLAW_INSTALL_TAG:-v0.0.64}"
 echo "... using $NEMOCLAW_INSTALL_TAG"
 prompt_env_var "vLLM external port" "VLLM_PORT"
 VLLM_PORT="$(read_env_var "VLLM_PORT")"
@@ -73,10 +73,28 @@ read -r -p "Do you want to start a vLLM server to run ${HF_MODEL_REPO}/${HF_MODE
 if [[ "$START_VLLM" =~ ^[Yy]$ ]]; then
     docker compose down
     docker compose up -d
+    echo "vLLM server will be available at http://localhost:${VLLM_PORT}"
+    echo "You can check configuration progress by running docker compose logs"
 fi
+echo "==> Currently available vLLM models..."
+curl http://localhost:${VLLM_PORT}/v1/models
 
 echo "==> Installing NemoClaw ${NEMOCLAW_INSTALL_TAG}"
 echo "You will need to:"
 echo "  1. Accept the NVIDIA EULA"
-echo "  2. Do not run express install (uncheck the box)"
+echo "  2. Do not run express install"
+echo "  3. When asked for 'Inference options:'"
+echo "     - select '5) Other Anthropic-compatible endpoint'"
+echo "     - 'Anthropic-compatible base URL' should be 'http://localhost:${VLLM_PORT}/v1'"
+echo "     - 'Other Anthropic-compatible endpoint API key:' should be 'dummy'"
+echo "     - 'Other Anthropic-compatible endpoint model: should be '${HF_MODEL_REPO}/${HF_MODEL_NAME}'"
+echo "  4. When asked for 'Sandbox name' enter whatever you want, e.g. 'saferclaw'"
+echo "  5. When asked 'Apply this configuration? [Y/n]:', check the details and select 'Y'"
+echo "  6. When asked 'Available messaging channels:', we suggest using Slack (you will need a bot token)"
+echo "  7. Networking presets: we suggest including only 'npm', 'pypi', 'huggingface', 'brew', 'github', 'slack'"
 curl -fsSL https://www.nvidia.com/nemoclaw.sh | bash
+
+echo "==> Using NemoClaw agents"
+echo "The easiest way will be to use the terminal UI:"
+echo "> nemoclaw \$SANDBOX_NAME connect"
+echo "> nemoclaw dactyl connect"
