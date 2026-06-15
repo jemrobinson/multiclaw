@@ -1,7 +1,7 @@
 services:
-  multiclaw-vllm-server:
+  saferclaw-vllm-server:
     image: "nvcr.io/nvidia/vllm:${VLLM_VERSION:-26.05.post1-py3}"
-    container_name: multiclaw-vllm-server
+    container_name: saferclaw-vllm-server
     ipc: host
     environment:
       HF_TOKEN: ${HF_TOKEN:-}
@@ -21,14 +21,12 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: all
+              count: 1
               capabilities: [gpu]
-    stdin_open: true
-    tty: true
     command:
-      [
-        "vllm",
-        "serve",
-        "${HF_MODEL_REPO:-openai}/${HF_MODEL_NAME:-gpt-oss-20b}",
-      ]
+      python3 -m vllm.entrypoints.openai.api_server
+      --model ${HF_MODEL_REPO:-openai}/${HF_MODEL_NAME:-gpt-oss-20b}
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.3
     restart: unless-stopped
