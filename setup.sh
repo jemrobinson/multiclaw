@@ -70,14 +70,15 @@ echo "... using $VLLM_VERSION"
 
 echo "==> Preparing to install NemoClaw..."
 read -r -p "Do you want to start a vLLM server to run ${HF_MODEL_REPO}/${HF_MODEL_NAME}? " START_VLLM
+PUBLIC_IP="$(hostname -I | awk '{print $1}')"
 if [[ "$START_VLLM" =~ ^[Yy]$ ]]; then
     docker compose down
     docker compose up -d
-    echo "vLLM server will be available at http://localhost:${VLLM_PORT}"
+    echo "vLLM server will be available at http://${PUBLIC_IP}:${VLLM_PORT}"
     echo "You can check configuration progress by running docker compose logs"
 fi
 echo "==> Currently available vLLM models..."
-curl http://localhost:${VLLM_PORT}/v1/models
+curl http://${PUBLIC_IP}:${VLLM_PORT}/v1/models
 
 echo "==> Installing NemoClaw ${NEMOCLAW_INSTALL_TAG}"
 echo "You will need to:"
@@ -85,7 +86,7 @@ echo "  1. Accept the NVIDIA EULA"
 echo "  2. Do not run express install"
 echo "  3. When asked for 'Inference options:'"
 echo "     - select '5) Other Anthropic-compatible endpoint'"
-echo "     - 'Anthropic-compatible base URL' should be 'http://localhost:${VLLM_PORT}/v1'"
+echo "     - 'Anthropic-compatible base URL' should be 'http://${PUBLIC_IP}:${VLLM_PORT}/v1'"
 echo "     - 'Other Anthropic-compatible endpoint API key:' should be 'dummy'"
 echo "     - 'Other Anthropic-compatible endpoint model: should be '${HF_MODEL_REPO}/${HF_MODEL_NAME}'"
 echo "  4. When asked for 'Sandbox name' enter whatever you want, e.g. 'saferclaw'"
