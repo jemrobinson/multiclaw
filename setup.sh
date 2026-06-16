@@ -91,6 +91,10 @@ if [  "$(nemoclaw --version)" != "nemoclaw $NEMOCLAW_INSTALL_TAG" ]; then
   curl -fsSL https://www.nvidia.com/nemoclaw.sh | NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1 NEMOCLAW_NON_INTERACTIVE=0 NEMOCLAW_INSTALL_TAG=$NEMOCLAW_INSTALL_TAG bash || true
 fi
 
+echo "==> Building custom base image for sandboxes"
+docker build -f "${ROOT_DIR}/Dockerfile.sandbox" -t sandbox-base:latest "${ROOT_DIR}"
+sed -i "s|BASE_IMAGE=.*:latest|BASE_IMAGE=sandbox-base:latest|g" "${HOME}/.nemoclaw/source/Dockerfile"
+
 echo "==> Configuring NemoClaw"
 echo "You will need to:"
 echo "  1. Accept the NVIDIA EULA"
@@ -103,8 +107,8 @@ echo "     - 'Other Anthropic-compatible endpoint model: should be '${HF_MODEL_R
 echo "  4. When asked for 'Sandbox name' enter whatever you want, e.g. 'saferclaw'"
 echo "  5. When asked 'Apply this configuration? [Y/n]:', check the details and select 'Y'"
 echo "  6. When asked 'Available messaging channels:', we suggest using Slack (you will need a bot token)"
-echo "  7. Networking presets: we suggest including only 'npm', 'pypi', 'huggingface', 'slack'"
-NEMOCLAW_POLICY_TIER=balanced nemoclaw onboard --gpu --fresh --from "${ROOT_DIR}/Dockerfile.sandbox" --name "$NEMOCLAW_SANDBOX_NAME"
+echo "  7. Networking presets: we suggest including only 'npm', 'pypi', 'huggingface', 'claude-code', 'slack'"
+nemoclaw onboard --gpu --name "$NEMOCLAW_SANDBOX_NAME"
 
 echo "==> Patching NemoClaw sandbox"
 echo "  1. Applying saferclaw network policies"
