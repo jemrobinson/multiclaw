@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+BOLD=$(tput bold)
+NORMAL=$(tput sgr0)
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$ROOT_DIR/.env"
 if [[ $# -lt 1 ]]; then
@@ -40,7 +43,7 @@ prompt_env_var() {
   fi
 }
 
-echo "==> Setting environment variables"
+echo "${BOLD}==> Setting environment variables${NORMAL}"
 prompt_env_var "Hugging Face local cache path" "HF_HUB_CACHE"
 HF_HUB_CACHE="$(read_env_var "HF_HUB_CACHE")"
 HF_HUB_CACHE="${HF_HUB_CACHE:-${HOME}/.cache/huggingface}"
@@ -73,7 +76,7 @@ VLLM_VERSION="$(read_env_var "VLLM_VERSION")"
 VLLM_VERSION="${VLLM_VERSION:-26.05.post1-py3}"
 echo "... using $VLLM_VERSION"
 
-echo "==> Preparing to install NemoClaw..."
+echo "${BOLD}==> Preparing LLM server${NORMAL}"
 read -r -p "Do you want to start a vLLM server to run ${HF_MODEL_REPO}/${HF_MODEL_NAME}? " START_VLLM
 PUBLIC_IP="$(hostname -I | awk '{print $1}')"
 if [[ "$START_VLLM" =~ ^[Yy]$ ]]; then
@@ -82,20 +85,22 @@ if [[ "$START_VLLM" =~ ^[Yy]$ ]]; then
     echo "vLLM server will be available at http://${PUBLIC_IP}:${VLLM_PORT}"
     echo "You can check configuration progress by running docker compose logs"
 fi
-echo "==> Currently available vLLM models..."
+echo "${BOLD}==> Currently available vLLM models...${NORMAL}"
 curl http://${PUBLIC_IP}:${VLLM_PORT}/v1/models
 
 # Install NemoClaw if we do not have the correct version
 if [  "$(nemoclaw --version)" != "nemoclaw $NEMOCLAW_INSTALL_TAG" ]; then
-  echo "==> Installing NemoClaw ${NEMOCLAW_INSTALL_TAG}"
+  echo "${BOLD}==> Installing NemoClaw ${NEMOCLAW_INSTALL_TAG}${NORMAL}"
   curl -fsSL https://www.nvidia.com/nemoclaw.sh | NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1 NEMOCLAW_NON_INTERACTIVE=0 NEMOCLAW_INSTALL_TAG=$NEMOCLAW_INSTALL_TAG bash || true
 fi
 
-echo "==> Building custom base image for sandboxes"
+# Build a local image with gh
+echo "${BOLD}==> Building custom base image for sandboxes${NORMAL}"
 docker build -f "${ROOT_DIR}/Dockerfile.sandbox" -t sandbox-base:latest "${ROOT_DIR}"
 sed -i "s|BASE_IMAGE=.*:latest|BASE_IMAGE=sandbox-base:latest|g" "${HOME}/.nemoclaw/source/Dockerfile"
 
-echo "==> Configuring NemoClaw"
+# Onboard a new sandbox
+echo "${BOLD}==> Configuring NemoClaw${NORMAL}"
 echo "You will need to:"
 echo "  1. Accept the NVIDIA EULA"
 echo "  2. Do not run express install"
@@ -110,10 +115,17 @@ echo "  6. When asked 'Available messaging channels:', we suggest using Slack (y
 echo "  7. Networking presets: we suggest including only 'npm', 'pypi', 'huggingface', 'claude-code', 'slack'"
 nemoclaw onboard --gpu --name "$NEMOCLAW_SANDBOX_NAME"
 
-echo "==> Patching NemoClaw sandbox"
-echo "  1. Applying saferclaw network policies"
+# Patch the sandbox
+echo "${BOLD}==> Patching the $NEMOCLAW_SANDBOX_NAME sandbox${NORMAL}"
+echo "  1. Applying network policies from ./policies"
 nemoclaw "$NEMOCLAW_SANDBOX_NAME" policy-add --from-dir ./policies/ --yes
-echo "  2. To configure GitHub token login:"
-echo "   - open an openclaw terminal with 'nemoclaw $NEMOCLAW_SANDBOX_NAME connect'"
-echo "   - then in the openclaw terminal, run: 'gh auth login'"
-echo "   - then exit the openclaw terminal and run: 'openshell term' and approve the network request"
+echo "  2. Installing skills from ./skills"
+for SKILL_PATH in ./skills/*/; do
+  nemoclaw "$NEMOCLAW_SANDBOX_NAME" skill install "${SKILL_PATH}"
+done
+
+# Instructions to the user
+echo "${BOLD}==> User actions${NORMAL}"
+echo "To configure GitHub token login:"
+echo "  - open an openclaw terminal with 'nemoclaw $NEMOCLAW_SANDBOX_NAME connect'"
+echo "  - then in the openclaw terminal, run: 'gh auth login'"
