@@ -26,7 +26,9 @@ services:
     command:
       python3 -m vllm.entrypoints.openai.api_server
       --model ${HF_MODEL_REPO:-openai}/${HF_MODEL_NAME:-gpt-oss-20b}
+      --enable-auto-tool-choice
+      --gpu-memory-utilization 0.3
       --host 0.0.0.0
       --port 8000
-      --gpu-memory-utilization 0.3
+      --tool-call-parser hermes
     restart: unless-stopped
