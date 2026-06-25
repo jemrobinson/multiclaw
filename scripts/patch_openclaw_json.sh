@@ -66,6 +66,7 @@ info "Patching $OPENCLAW_JSON on sandbox '$SANDBOX_NAME'..."
 info "  1. enable the wakeup skill in the registry"
 info "  2. allow exec/read/write tools in the prompt (tools.profile=coding)"
 info "  3. allow pro-active Slack interactions without an explicit mention"
+info "  4. set maxTokens to 32768 on all model entries"
 ssh_sandbox "$SANDBOX_NAME" "python3 - <<'PYEOF'
 import json
 p = '$OPENCLAW_JSON'
@@ -109,6 +110,25 @@ def patch_require_mention(obj):
                 patched = True
     return patched
 if patch_require_mention(d):
+    changed = True
+
+# 4) Set maxTokens to 32768 wherever it appears in the models config.
+def patch_max_tokens(obj):
+    patched = False
+    if isinstance(obj, dict):
+        if 'maxTokens' in obj:
+            if obj['maxTokens'] != 32768:
+                patched = True
+            obj['maxTokens'] = 32768
+        for v in obj.values():
+            if patch_max_tokens(v):
+                patched = True
+    elif isinstance(obj, list):
+        for item in obj:
+            if patch_max_tokens(item):
+                patched = True
+    return patched
+if patch_max_tokens(d):
     changed = True
 
 if changed:
