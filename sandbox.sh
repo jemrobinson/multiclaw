@@ -61,6 +61,8 @@ echo "  2. Installing skills from ./skills"
 for SKILL_PATH in ./skills/*/; do
   nemoclaw "$NEMOCLAW_SANDBOX_NAME" skill install "${SKILL_PATH}"
 done
+echo "  3. Installing wakeup command"
+./wakeup.sh "$NEMOCLAW_SANDBOX_NAME"
 
 # Instructions to the user
 echo "${BOLD}==> User actions${NORMAL}"
