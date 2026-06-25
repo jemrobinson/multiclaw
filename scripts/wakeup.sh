@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # ── SaferClaw Wakeup Installer ───────────────────────────────────
 #
 # Taken from: https://github.com/brevdev/nemoclaw-demos
@@ -88,52 +90,6 @@ detect_paths() {
   fi
   WAKEUP_MD_PATH="$WORKSPACE_DIR/WAKEUP.md"
   SKILL_DEST="$SKILLS_DIR/wakeup/SKILL.md"
-}
-
-# ── openclaw.json mutation helpers ────────────────────────────────
-# All updates run a small Python program inside the sandbox over SSH so
-# the JSON edit is atomic and we don't need jq.
-#
-# configure_openclaw_json: enable the wakeup skill in the
-# skill registry and ensure tools.profile is "coding" so the agent can
-# actually use `read`/`exec` to load SKILL.md and run commands.
-# Idempotent. No-op on legacy layouts.
-configure_openclaw_json() {
-  local sandbox="$1"
-  [ -z "$OPENCLAW_JSON" ] && return 0
-  if ! ssh_sandbox "$sandbox" "[ -f $OPENCLAW_JSON ]"; then
-    warn "$OPENCLAW_JSON not found; skipping skill-registry + tools-profile update"
-    return 0
-  fi
-  ssh_sandbox "$sandbox" "python3 - <<'PYEOF'
-import json
-p = '$OPENCLAW_JSON'
-d = json.load(open(p))
-changed = False
-
-# 1) Enable this skill in the registry so it surfaces in the system prompt.
-entry = d.setdefault('skills', {}).setdefault('entries', {}).setdefault('wakeup', {})
-if entry.get('enabled') is not True:
-    entry['enabled'] = True
-    changed = True
-
-# 2) Ensure the agent has exec/read/write tools surfaced in the prompt.
-# 'coding' is the documented OpenClaw profile for sandboxes that run
-# binaries. Without it, OpenClaw v2026.5.18+ defaults to compact tool-
-# search mode which hides 'read' and the agent never loads SKILL.md.
-tools = d.setdefault('tools', {})
-if tools.get('profile') is None:
-    tools['profile'] = 'coding'
-    changed = True
-elif tools.get('profile') != 'coding':
-    print('WARN: tools.profile is set to %r; leaving as-is. If the agent fails to load SKILL.md, set it to \"coding\".' % tools.get('profile'))
-
-if changed:
-    json.dump(d, open(p, 'w'), indent=2)
-    print('updated')
-else:
-    print('already configured')
-PYEOF"
 }
 
 # ── Parse arguments ───────────────────────────────────────────────
@@ -354,8 +310,8 @@ fi
 # ── Step 3b: Enable skill in OpenClaw registry + set tools.profile ─
 if [ "$LAYOUT" = "new" ]; then
   info "Configuring openclaw.json (skill registry + tools.profile)..."
-  if configure_openclaw_json "$SANDBOX_NAME"; then
-    ok "openclaw.json updated"
+  if OPENSHELL_BIN="$OPENSHELL_BIN" "$SCRIPT_DIR/patch_openclaw_json.sh" "$SANDBOX_NAME"; then
+    ok "openclaw.json configured"
   else
     warn "Could not update openclaw.json; agent may not surface SKILL.md"
     warn "Manual fix: edit $OPENCLAW_JSON and add:"
