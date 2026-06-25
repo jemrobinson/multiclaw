@@ -106,7 +106,7 @@ configure_openclaw_json() {
     return 0
   fi
   ssh_sandbox "$sandbox" "python3 - <<'PYEOF'
-import json, sys
+import json
 p = '$OPENCLAW_JSON'
 d = json.load(open(p))
 changed = False
@@ -179,38 +179,46 @@ if [ "$DO_STATUS" = true ]; then
   echo -e "${CYAN}  SaferClaw Wakeup Status${NC}"
   echo ""
 
-  if [ -f "$INSTALL_DIR/config.env" ]; then
-    # shellcheck disable=SC1091
-    source "$INSTALL_DIR/config.env"
-    ok "Installed"
-    echo "    Sandbox:   ${WAKEUP_SANDBOX:-unknown}"
+  _found_any=false
+  for _env in "$INSTALL_DIR"/*.env; do
+    [ -f "$_env" ] || continue
+    _found_any=true
+
+    # shellcheck disable=SC1090
+    source "$_env"
+    _log="${_env%.env}.log"
+    _script="${_env%.env}.sh"
+
+    echo -e "${CYAN}  ── ${WAKEUP_SANDBOX:-unknown} ──${NC}"
     echo "    Interval:  every ${WAKEUP_INTERVAL:-?} minutes"
     echo "    Layout:    ${WAKEUP_LAYOUT:-unknown}"
     echo "    WAKEUP.md: ${WAKEUP_MD_PATH:-unknown}"
     echo "    SKILL.md:  ${WAKEUP_SKILL_DEST:-unknown}"
     echo "    Trigger:   SSH (via openshell ssh-proxy)"
-    echo "    Log:       $INSTALL_DIR/wakeup.log"
-  else
-    warn "Not installed"
-  fi
+    echo "    Log:       $_log"
 
-  CRON_LINE=$(crontab -l 2>/dev/null | grep "saferclaw-wakeup" || true)
-  if [ -n "$CRON_LINE" ]; then
-    ok "Cron job active"
-    echo "    $CRON_LINE"
-  else
-    warn "No cron job found"
-  fi
+    _cron=$(crontab -l 2>/dev/null | grep "saferclaw-wakeup" | grep -F "$_script" || true)
+    if [ -n "$_cron" ]; then
+      ok "Cron job active"
+    else
+      warn "No cron job found"
+    fi
 
-  if [ -f "$INSTALL_DIR/wakeup.log" ]; then
+    if [ -f "$_log" ]; then
+      echo "  Last 5 log entries:"
+      tail -10 "$_log" | grep "^[0-9]" | tail -5 | while read -r line; do
+        echo "    $line"
+      done
+    fi
+
     echo ""
-    echo "  Last 5 log entries:"
-    tail -10 "$INSTALL_DIR/wakeup.log" | grep "^[0-9]" | tail -5 | while read -r line; do
-      echo "    $line"
-    done
+  done
+
+  if [ "$_found_any" = false ]; then
+    warn "Not installed"
+    echo ""
   fi
 
-  echo ""
   exit 0
 fi
 
@@ -220,17 +228,31 @@ if [ "$DO_UNINSTALL" = true ]; then
   echo -e "${CYAN}  Removing SaferClaw Wakeup...${NC}"
   echo ""
 
-  EXISTING=$(crontab -l 2>/dev/null | grep -v "saferclaw-wakeup" || true)
-  if [ -n "$EXISTING" ]; then
-    echo "$EXISTING" | crontab -
+  if [ -n "$SANDBOX_NAME" ]; then
+    # Remove only this sandbox's cron entry and files.
+    SANDBOX_NAME_LOWER=$(echo "$SANDBOX_NAME" | tr '[:upper:]' '[:lower:]')
+    _script="$INSTALL_DIR/${SANDBOX_NAME_LOWER}.sh"
+    EXISTING=$(crontab -l 2>/dev/null | grep -v "$_script" || true)
+    if [ -n "$EXISTING" ]; then
+      echo "$EXISTING" | crontab -
+    else
+      crontab -r 2>/dev/null || true
+    fi
+    rm -f "$INSTALL_DIR/${SANDBOX_NAME_LOWER}.sh" \
+          "$INSTALL_DIR/${SANDBOX_NAME_LOWER}.env" \
+          "$INSTALL_DIR/${SANDBOX_NAME_LOWER}.log" \
+          "$INSTALL_DIR/${SANDBOX_NAME_LOWER}.sh.lock"
+    ok "Cron job and files removed for sandbox: $SANDBOX_NAME"
   else
-    crontab -r 2>/dev/null || true
+    # No sandbox specified — remove all saferclaw-wakeup entries.
+    EXISTING=$(crontab -l 2>/dev/null | grep -v "saferclaw-wakeup" || true)
+    if [ -n "$EXISTING" ]; then
+      echo "$EXISTING" | crontab -
+    else
+      crontab -r 2>/dev/null || true
+    fi
+    ok "All wakeup cron jobs removed"
   fi
-  ok "Cron job removed"
-
-  rm -rf "$INSTALL_DIR"
-  rm -rf "$HOME/.saferclaw/heartbeat" 2>/dev/null || true
-  ok "Wakeup files removed"
 
   echo ""
   echo -e "${GREEN}  SaferClaw Wakeup uninstalled.${NC}"
@@ -273,7 +295,7 @@ info "Sandbox: $SANDBOX_NAME"
 
 # ── Step 1b: Verify SSH connectivity ──────────────────────────────
 info "Testing SSH connection to sandbox..."
-SSH_TEST=$(ssh_sandbox "$SANDBOX_NAME" "echo OK" 2>/dev/null || echo "FAIL")
+SSH_TEST=$(ssh_sandbox "$SANDBOX_NAME" "echo OK" || echo "FAIL")
 if [ "$SSH_TEST" != "OK" ]; then
   fail "Cannot SSH into sandbox '$SANDBOX_NAME'. Is it running?"
 fi
@@ -322,7 +344,7 @@ info "Interval: every $INTERVAL minutes"
 echo ""
 info "Checking wakeup skill is installed..."
 
-if ssh_sandbox "$SANDBOX_NAME" "[ -f $SKILL_DEST ]" 2>/dev/null; then
+if ssh_sandbox "$SANDBOX_NAME" "[ -f $SKILL_DEST ]"; then
   ok "Skill deployed at $SKILL_DEST"
 else
   warn "Skill not found at $SKILL_DEST."
@@ -345,7 +367,7 @@ fi
 # ── Step 4: Seed WAKEUP.md if missing ────────────────────────────
 info "Checking for WAKEUP.md in sandbox..."
 
-ssh_sandbox "$SANDBOX_NAME" "mkdir -p $WORKSPACE_DIR" 2>/dev/null || true
+ssh_sandbox "$SANDBOX_NAME" "mkdir -p $WORKSPACE_DIR" || true
 HB_EXISTS=$(ssh_sandbox "$SANDBOX_NAME" "[ -f $WAKEUP_MD_PATH ] && echo yes || echo no")
 
 if [ "$HB_EXISTS" = "no" ]; then
@@ -367,21 +389,26 @@ fi
 info "Installing wakeup script..."
 
 mkdir -p "$INSTALL_DIR"
+SANDBOX_NAME_LOWER=$(echo "$SANDBOX_NAME" | tr '[:upper:]' '[:lower:]')
+CRON_ENV_FILE="$INSTALL_DIR/${SANDBOX_NAME_LOWER}.env"
+CRON_LOG_FILE="$INSTALL_DIR/${SANDBOX_NAME_LOWER}.log"
+CRON_SCRIPT_FILE="$INSTALL_DIR/${SANDBOX_NAME_LOWER}.sh"
 
-cat > "$INSTALL_DIR/wakeup.sh" << WKEOF
+cat > "$CRON_SCRIPT_FILE" << WKEOF
 #!/bin/bash
 # SaferClaw Wakeup — fires the OpenClaw agent via SSH.
 # Uses flock to prevent overlapping runs. Uses unique session IDs
 # to prevent context bleed between pulses.
 
-CONFIG="\$HOME/.saferclaw/wakeup/config.env"
+CONFIG="$CRON_ENV_FILE"
+LOG="$CRON_LOG_FILE"
+LOCK="${CRON_SCRIPT_FILE}.lock"
+
 source "\$CONFIG" 2>/dev/null || {
-  echo "\$(date +%Y-%m-%dT%H:%M:%S) ERROR config.env missing" >> "\$HOME/.saferclaw/wakeup/wakeup.log"
+  echo "\$(date +%Y-%m-%dT%H:%M:%S) ERROR ${SANDBOX_NAME_LOWER}.env missing" >> "\$LOG"
   exit 1
 }
 
-LOG="\$HOME/.saferclaw/wakeup/wakeup.log"
-LOCK="\$HOME/.saferclaw/wakeup/wakeup.lock"
 MAX_LOG=1000
 
 # ── Concurrency guard (flock) ────────────────────────────────────
@@ -428,11 +455,11 @@ if [ "\$LINES" -gt "\$MAX_LOG" ]; then
 fi
 WKEOF
 
-chmod +x "$INSTALL_DIR/wakeup.sh"
-ok "Wakeup script: $INSTALL_DIR/wakeup.sh"
+chmod +x "$CRON_SCRIPT_FILE"
+ok "Wakeup script: $CRON_SCRIPT_FILE"
 
 # ── Step 6: Save config ──────────────────────────────────────────
-cat > "$INSTALL_DIR/config.env" << CFGEOF
+cat > "$CRON_ENV_FILE" << CFGEOF
 WAKEUP_SANDBOX="$SANDBOX_NAME"
 WAKEUP_INTERVAL="$INTERVAL"
 WAKEUP_OPENSHELL="$OPENSHELL_BIN"
@@ -440,15 +467,15 @@ WAKEUP_LAYOUT="$LAYOUT"
 WAKEUP_MD_PATH="$WAKEUP_MD_PATH"
 WAKEUP_SKILL_DEST="$SKILL_DEST"
 CFGEOF
-ok "Config: $INSTALL_DIR/config.env"
+ok "Config: $CRON_ENV_FILE"
 
 # ── Step 7: Install cron job ─────────────────────────────────────
 info "Setting up cron job..."
 
-CRON_ENTRY="*/$INTERVAL * * * * $INSTALL_DIR/wakeup.sh  # saferclaw-wakeup"
+CRON_ENTRY="*/$INTERVAL * * * * $CRON_SCRIPT_FILE  # saferclaw-wakeup"
 
-# Remove old heartbeat AND wakeup entries
-EXISTING_CRON=$(crontab -l 2>/dev/null | grep -v "saferclaw-wakeup" | grep -v "saferclaw-heartbeat" || true)
+# Replace this sandbox's existing cron entry only, preserving other sandboxes.
+EXISTING_CRON=$(crontab -l 2>/dev/null | grep -v "$CRON_SCRIPT_FILE" || true)
 if [ -n "$EXISTING_CRON" ]; then
   (echo "$EXISTING_CRON"; echo "$CRON_ENTRY") | crontab -
 else
@@ -467,7 +494,7 @@ echo "  Sandbox:    $SANDBOX_NAME"
 echo "  Layout:     $LAYOUT (workspace: $WORKSPACE_DIR)"
 echo "  Interval:   every $INTERVAL minutes"
 echo "  Trigger:    SSH (via openshell ssh-proxy, ~400ms)"
-echo "  Log file:   $INSTALL_DIR/wakeup.log"
+echo "  Log file:   $CRON_LOG_FILE"
 echo ""
 echo "  The agent reads $WAKEUP_MD_PATH for its instructions."
 echo "  To change what the agent does:"
@@ -480,8 +507,8 @@ echo "      openshell sandbox connect $SANDBOX_NAME"
 echo "      nano $WAKEUP_MD_PATH"
 echo ""
 echo "  Commands:"
-echo "    Test now:         $INSTALL_DIR/wakeup.sh"
-echo "    View log:         tail -f $INSTALL_DIR/wakeup.log"
+echo "    Test now:         $CRON_SCRIPT_FILE"
+echo "    View log:         tail -f $CRON_LOG_FILE"
 echo "    Check status:     ./install.sh --status"
 echo "    Change interval:  ./install.sh --interval 30"
 echo "    Uninstall:        ./install.sh --uninstall"
