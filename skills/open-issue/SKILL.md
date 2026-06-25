@@ -1,5 +1,5 @@
 ---
-name: "add-feature-request"
+name: "open-issue"
 description: "Creates a concise implementation plan for a new feature and opens a comprehensive GitHub issue."
 ---
 
